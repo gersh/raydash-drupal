@@ -6,6 +6,7 @@
 		    ->minimumVersion('10.3.0')
 		    ->height($item['height'])
  		    ->width($item['width'])
+                ->param('allowScriptAccess','always')
 		    ->flashVar('autostart',$item['autostart'])
 		    ->flashVar('token',$item['token'])
 		    ->flashVar('videoOff',$item['videoOff'])
@@ -18,20 +19,21 @@
 		    ->minimumVersion('10.3.0')
 		    ->height($item['height'])
  		    ->width($item['width'])
+                    ->param('allowScriptAccess','always')
 		    ->flashVar('autostart',$item['autostart'])
 		    ->flashVar('token',$item['token'])
 		    ->flashVar('videoOff',$item['videoOff'])
                     ->flashVar('hideControls','1')
                     ->flashVar('hideCamera',$item['hideCamera'])
                  ->swfFallback('9.0.0',RAYDASH_HOST_URL . "/api/2/recordbox/1");
-                drupal_add_js("function setSize(width,height,id) {if(id==undefined){id=\"#". $swf->getId() ."\";  }document.getElementById(id).width=width;document.getElementById(id).height=height;}");
+                drupal_add_js("function setSize(width,height,id) {if(id==undefined){id=\"#". $swf->getId() ."\";  }document.getElementById(id).width=width;document.getElementById(id).height=height;}",'inline');
 		return(theme('swfembed_embed',array('swf'=>$swf))); 
 	}
        function theme_raydash_button($item) {
+           //die(print_r($item,true));
            drupal_add_js(drupal_get_path('module','raydash') . "/behavior.raydash.js");
-           $item['text']="blah";
-           $html="<div id=\"raydash_next_" . $item['id'] . "\">" . $item['text']  . "</div>";
-           $settings['raydash']['next_button'][$item['id']]=array('nid'=>$item['nid']);
+           $html="<button id=\"raydash_".$item['button_type'] ."_" . $item['id'] . "\">" . $item['text']  . "</button>";
+           $settings['raydash'][$item['button_type'] . '_button'][$item['id']]=array('nid'=>$item['nid']);
            drupal_add_js($settings,array('type'=>'setting'));
            return($html);
        }

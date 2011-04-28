@@ -2,7 +2,7 @@
 /** 
  * Constant specifying the HTTP API URL
  */
-define('RAYDASH_HOST_URL',"http://localhost:8080");
+define('RAYDASH_HOST_URL',"http://api.raydash.com:8080");
 
 /**
  * Internal function accessing the Raydash API
@@ -23,7 +23,7 @@ function raydash_2_post_request($path,$data) {
   $userid=variable_get('raydash_userid');
     $secret=variable_get('raydash_secret');
     $url=RAYDASH_HOST_URL . "/api/2/" . $path;
-    $data .= "&userid=" . $userid ."&secret=" . $secret;
+    $data = "userid=" . $userid ."&secret=" . $secret . $data;
     $response=drupal_http_request($url,array('method'=>'POST','data'=>$data));
     if($response->code != 200) {
         return("");
@@ -78,12 +78,47 @@ function raydash_field_info() {
         'raydash_button' => array(
             'label' => t('Raydash button to change the video stream'),
             'description' => t("Used to change to the next stream"),
-            'instance_settings' => array('two_way' => '1'),
+            'instance_settings' => array('two_way'=>true,'next_type'=>'next','active'=>true,'text'=>'next'),
             'default_widget' => 'raydash_button',
             'default_formatter' => 'raydash_button',
             'settings'=>array())
                   ));
 }
+function raydash_field_instance_settings_form($field,$instance) {
+    $settings=$instance['settings'];
+    $form=array();
+    if($field['type']=='raydash_button') {
+        $form['two_way'] = array(
+            '#type'=>'checkbox',
+            '#title'=>t('Two Way'),
+            '#default_value'=>$settings['two_way'],
+            '#description'=>t('You can decide whether to do two-way next-type functionality. This is useful for two-way communication, where both sides see each other'));
+        $form['next_type']=array(
+            '#type'=>'radios',
+            '#title'=>'Next Type',
+            '#default_value'=>$settings['next_type'],
+            '#description'=>t('With next, you can go through the video streams ordered by id. Randnext will go through them randomly'),
+            '#options'=>array('next'=>t("Next"),'randnext'=>t("Random Next")));
+        $form['active']=array(
+            '#type'=>'select',
+            '#title'=>'Active',
+            '#default_value'=>$settings['active'],
+            '#description'=>t('Determines whether to connect to an active connection'),
+            '#options'=>array(NULL=>t("n/a"),true=>t('yes'),false=>t('no')));
+        $form['text']=array(
+            '#title'=>'Text',
+            '#type'=>'textfield',
+            '#size'=>'10',
+            '#default_value'=>$settings['text'],
+            '#description'=>t('Determines the text on the actual button'));
+    }
+    
+    return($form);
+}
+/**
+ * hook_field_formatter_info
+ * Defines the formatter types 
+ */
 function raydash_field_formatter_info() {
     return array(
         'raydash_streambox' => array(
@@ -133,6 +168,7 @@ function raydash_field_formatter_prepare_view($entity_type,$entities,$field,$ins
             $raydash_button_n=&drupal_static("raydash_button_n",0);
             $n=$raydash_button_n++;
             $items[$id][0]['id']=$n;
+            $_SESSION['raydash_button'][$entity->nid][$n] =$instance[$id]['settings'];
         }
         break;
     }
@@ -152,7 +188,8 @@ function raydash_field_formatter_view($entity_type, $entity, $field, $instance, 
         $elements[0]=array('#theme'=>'raydash_record','#token'=>$items[0]['token']);
         break;
     case 'raydash_button':
-        $elements[0]=array('#theme'=>'raydash_button','#id'=>$items[0]['id'],'#nid'=>$entity->nid);
+        $elements[0]=array('#theme'=>'raydash_button','#id'=>$items[0]['id'],'#nid'=>$entity->nid,
+                                                       '#button_type'=>$instance['settings']['next_type'],'#text'=>$instance['settings']['text']);
         break;
     }
     return($elements);
@@ -230,12 +267,13 @@ function raydash_theme() {
                                   'file' => 'raydash_elements.inc'),
         'raydash_record' => array('variables' => array('token' => NULL, 'id' => NULL, 'height' => '640', 'width' => '480','hideCamera' => '0','videoOff'=>'0','autostart'=>'1'),
                                   'file' => 'raydash_elements.inc'),
-        'raydash_button' => array('variables'=> array('id'=>NULL,'nid'=>NULL,'name'=>'next'), 'file'=>'raydash_elements.inc'));
+        'raydash_button' => array('variables'=> array('id'=>NULL,'nid'=>NULL,'name'=>'next','button_type'=>'next','text'=>'next'), 'file'=>'raydash_elements.inc'));
 }
 
 function raydash_user_next($nid,$id) {
+    $settings=$_SESSION['raydash_button'][$nid][$id] ;
     if(isset($_SESSION['stream_id'][$nid][$id])) {
-        $ret=raydash_next($_SESSION['stream_id'][$nid][$id],$nid ,true,null,true);
+        $ret=raydash_next($_SESSION['stream_id'][$nid][$id],$nid ,$settings['two_way'],null,$settings['active']);
         drupal_json_output(array('success'=>'true','ret'=>$ret));
     }
     else {
@@ -244,8 +282,9 @@ function raydash_user_next($nid,$id) {
 }
 
 function raydash_user_randnext($nid,$id) {
+    $settings=$_SESSION['raydash_button'][$nid][$id] ;
     if(isset($_SESSION['stream_id'][$nid][$id])) {
-        $ret=raydash_randnext($_SESSION['stream_id'][$nid][$id],$nid,true,null,true);
+        $ret=raydash_randnext($_SESSION['stream_id'][$nid][$id],$nid,$settings['two_way'],null,$settings['active']);
         drupal_json_output(array('success'=>'true','ret'=>$ret));
     }
     else {
@@ -255,8 +294,10 @@ function raydash_user_randnext($nid,$id) {
 }
 function raydash_permission() {
     return array('access raydash callback' => 
-                 array('title'=>t('Access Raydash callback'),
-                       'description'=>t('Allows using the ajax functionality for Raydash'))
+                 array('title'=>'access raydash callback',
+                       'description'=>t('Allows using the ajax functionality for Raydash')),
+                 'administer raydash'=> array('title'=>'Administer Raydash',
+                                              'description'=>t('Admin menu for raydash')) 
         );
 }
 /**
@@ -265,21 +306,23 @@ function raydash_permission() {
 function raydash_menu() {
     $items =array();         
     $items['admin/config/media/raydash']=array('title'=> 'Raydash Settings',
-                                               'description' => t('Configure Raydash for live video'),
+                                               'description' => 'Configure Raydash for live video',
                                                'page callback' => 'drupal_get_form',
                                                'page arguments' => array('raydash_site_settings'),
-                                               'access arguments' => 'administer raydash',
+                                               'access arguments' => array('administer raydash'),
+                                               'weight' => 10,
+                                               'type' => MENU_NORMAL_ITEM,
                                                'file'=>'raydash.menu.inc');
     $items['raydash/next']=array('title'=>'next',
                                  'page callback' => 'raydash_user_next',
                                  'page arguments' => array(2,3),
-                                 'access arguments'=>'access raydash callback',
+                                 'access callback'=>TRUE,
                                  'type'=>MENU_CALLBACK);
  
     $items['raydash/randnext']=array('title'=>'randnext',
                                      'page callback' => 'raydash_user_randnext',
                                      'page arguments' => array(2,3),
-                                     'access arguments' => 'access raydash callback',
+                                     'access callback' => TRUE,
                                      'type'=>MENU_CALLBACK);
     return($items);	
 }
