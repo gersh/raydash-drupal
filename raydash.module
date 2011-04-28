@@ -1,0 +1,287 @@
+<?php
+/** 
+ * Constant specifying the HTTP API URL
+ */
+define('RAYDASH_HOST_URL',"http://localhost:8080");
+
+/**
+ * Internal function accessing the Raydash API
+*/
+function raydash_2_request($path,$params) {
+    $userid=variable_get('raydash_userid');
+    $secret=variable_get('raydash_secret');
+    $url=RAYDASH_HOST_URL . "/api/2/" . $path ."?userid=" . $userid ."&secret=" . $secret . $params;
+    $response=drupal_http_request($url);
+    if($response->code != 200) {
+        return("");
+    }
+    else {
+        return($response->data);
+    }
+}
+function raydash_2_post_request($path,$data) {
+  $userid=variable_get('raydash_userid');
+    $secret=variable_get('raydash_secret');
+    $url=RAYDASH_HOST_URL . "/api/2/" . $path;
+    $data .= "&userid=" . $userid ."&secret=" . $secret;
+    $response=drupal_http_request($url,array('method'=>'POST','data'=>$data));
+    if($response->code != 200) {
+        return("");
+    }
+    else {
+        return($response->data);
+    }
+}
+
+/**
+ * Internal function accessing the Raydash API
+ */
+function raydash_request($path) {
+    $userid=variable_get('raydash_userid');
+    $secret=variable_get('raydash_secret');
+    $url=RAYDASH_HOST_URL . "/api/1/" . $path ."?userid=" . $userid ."&secret=" . $secret;
+    $response=drupal_http_request($url);
+    if($response->code != 200) {
+        return("");
+    }
+    else {
+        return($response->data);
+    }
+}
+/** 
+ * Request a new token, which is needed for a raydash_stream or a raydash_record 
+ */
+function raydash_get_token($point_to,$customGroup) {
+    $token=raydash_2_post_request("authtoken","&customGroup=" .$customGroup);
+    module_invoke_all('raydash_get_token',$token);
+    return($token);
+}
+
+/** 
+ * hook_field_info()
+ * Define the fields for the different types of recording boxes 
+ */
+function raydash_field_info() {
+       return(array(
+        'raydash_stream' => array(
+            'label' => t('Raydash stream box'),
+            'description' => t('Used to play a stream'),
+            'settings' =>array(),
+            'default_widget' => 'raydash_streambox',
+            'default_formatter' => 'raydash_streambox'),
+        'raydash_record' => array(
+            'label' => t('Raydash record box'),
+            'description' => t('Used to send a stream to the webcam'),
+            'settings'=>array(),
+            'default_widget' => 'raydash_recordbox',
+            'default_formatter' => 'raydash_recordbox' ),
+        'raydash_button' => array(
+            'label' => t('Raydash button to change the video stream'),
+            'description' => t("Used to change to the next stream"),
+            'instance_settings' => array('two_way' => '1'),
+            'default_widget' => 'raydash_button',
+            'default_formatter' => 'raydash_button',
+            'settings'=>array())
+                  ));
+}
+function raydash_field_formatter_info() {
+    return array(
+        'raydash_streambox' => array(
+            'label' => t('Stream box'),
+            'field types' => array('raydash_stream'),
+            'settings'=>array()),
+        'raydash_recordbox' => array(
+            'label' => t('Record Box'),
+            'field types' => array('raydash_record'),
+            'settings'=>array()),
+        'raydash_button' => array(
+            'label' => t('Raydash Button'),
+            'field types' => array('raydash_button'),
+            'settings'=>array())
+        );
+}
+function raydash_field_formatter_prepare_view($entity_type,$entities,$field,$instance,$langocde,&$items,$displays) {
+    switch($field['type']) {
+    case 'raydash_record':
+        $raydash_record_n=&drupal_static("raydash_record_n",0);
+        $n=$raydash_record_n++;
+        $token=&drupal_static("raydash_token_" . $n);
+        foreach($entities as $id => $entity) {
+            if(!isset($token)) {
+                $token=raydash_get_token(null,$entity->nid);
+            }
+            $_SESSION['stream_id'][$entity->nid][$n]=$token;
+
+            $items[$id][0]['token']=$_SESSION['stream_id'][$entity->nid][$n];
+            
+        }   
+        break;
+    case 'raydash_stream':
+        $raydash_stream_n=&drupal_static("raydash_stream_n",0);
+        $n=$raydash_stream_n++;
+        $token=&drupal_static("raydash_token_" . $n);
+        foreach($entities as $id => $entity) {
+            if(!isset($token)) {
+                $token=raydash_get_token(null,$entity->nid);
+            }
+            $_SESSION['stream_id'][$entity->nid][$n]=$token;
+            $items[$id][0]['token']=$_SESSION['stream_id'][$entity->nid][$n];
+        }
+        break;
+    case 'raydash_button':
+        foreach($entities as $id => $entity) {
+            $raydash_button_n=&drupal_static("raydash_button_n",0);
+            $n=$raydash_button_n++;
+            $items[$id][0]['id']=$n;
+        }
+        break;
+    }
+}
+/**
+ * hook_field_formatter_view
+ * calls the themes for the formatters
+ */
+function raydash_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+    $element=array();
+    $elements=array();
+    switch($display['type']) {
+    case 'raydash_streambox':
+        $elements[0]=array('#theme'=>'raydash_stream','#token'=>$items[0]['token']);
+        break;
+    case 'raydash_recordbox':
+        $elements[0]=array('#theme'=>'raydash_record','#token'=>$items[0]['token']);
+        break;
+    case 'raydash_button':
+        $elements[0]=array('#theme'=>'raydash_button','#id'=>$items[0]['id'],'#nid'=>$entity->nid);
+        break;
+    }
+    return($elements);
+}
+function raydash_field_widget_info() {
+    return array(
+        'raydash_recordbox' => array(
+            'label' => 'Recordbox',
+            'field types' => array('raydash_record')),
+        'raydash_streambox' => array(
+            'label' => 'Streambox',
+            'field types' => array('raydash_stream')),
+        'raydash_button' => array(
+            'label' => 'RaydashButton',
+            'field types' => array('raydash_button')));
+}
+/**
+ * Change where a ClientBox is streaming from. 
+ * @tokenA The token for the record_stream
+ * @tokenB The token for the record_box we will be pointing to after this call
+ */
+function raydash_change_stream($tokenA,$tokenB) {
+    $ret=raydash_request("changeStream/".$tokenA."/".$tokenB);
+    
+    return($ret);
+}
+/**
+ * Change to the next stream*/
+function raydash_next($token,$customGroup,$twoWay,$newCustomGroup,$active) {
+    $path="authtoken/" . $token . "/next";
+    $params="";
+    if($customGroup) {
+        $params .=  "&customGroup=" . $customGroup;
+    }
+    if($twoWay) {
+        $params .= "&twoWay=" . $twoWay;
+    }
+    if($newCustomGroup) {
+        $params .=  "&newCustomGroup=" . $newCustomGroup;
+    }
+    if($active) {
+        $params .= "&active=" . $active;
+    }
+    $ret=raydash_2_request($path,$params);
+    return($ret);
+}
+function raydash_randnext($token,$customGroup,$twoWay,$newCustomGroup,$active) {
+    $path="authtoken/" . $token . "/randnext";
+    $params="";
+    if($customGroup) {
+        $params .=  "&customGroup=" . $customGroup;
+    }
+    if($twoWay) {
+        $params .= "&twoWay=" . $twoWay;
+    }
+    if($newCustomGroup) {
+        $params .=  "&newCustomGroup=" . $newCustomGroup;
+    }
+    if($active) {
+        $params .= "&active=" . $active;
+    }
+    $ret=raydash_2_request($path,$params);
+    return($ret);
+}
+/** 
+ * Do a next on a stream
+ * @token Our token 
+ * @
+/**
+ * hook_theme() adds the raydash_stream and raydash_record 
+ */
+function raydash_theme() {
+    return array(
+        'raydash_stream' => array('variables' => array('token' => NULL, 'id' => NULL, 'height' => '640', 'width' => '480','videoOff' => '0','autostart'=>'1'),
+                                  'file' => 'raydash_elements.inc'),
+        'raydash_record' => array('variables' => array('token' => NULL, 'id' => NULL, 'height' => '640', 'width' => '480','hideCamera' => '0','videoOff'=>'0','autostart'=>'1'),
+                                  'file' => 'raydash_elements.inc'),
+        'raydash_button' => array('variables'=> array('id'=>NULL,'nid'=>NULL,'name'=>'next'), 'file'=>'raydash_elements.inc'));
+}
+
+function raydash_user_next($nid,$id) {
+    if(isset($_SESSION['stream_id'][$nid][$id])) {
+        $ret=raydash_next($_SESSION['stream_id'][$nid][$id],$nid ,true,null,true);
+        drupal_json_output(array('success'=>'true','ret'=>$ret));
+    }
+    else {
+        drupal_json_output(array('success'=>'false'));
+    }
+}
+
+function raydash_user_randnext($nid,$id) {
+    if(isset($_SESSION['stream_id'][$nid][$id])) {
+        $ret=raydash_randnext($_SESSION['stream_id'][$nid][$id],$nid,true,null,true);
+        drupal_json_output(array('success'=>'true','ret'=>$ret));
+    }
+    else {
+        drupal_json_output(array('success'=>'false'));
+    }
+
+}
+function raydash_permission() {
+    return array('access raydash callback' => 
+                 array('title'=>t('Access Raydash callback'),
+                       'description'=>t('Allows using the ajax functionality for Raydash'))
+        );
+}
+/**
+ * hook_menu() creates admin menus for setting the userid and secret
+ */
+function raydash_menu() {
+    $items =array();         
+    $items['admin/config/media/raydash']=array('title'=> 'Raydash Settings',
+                                               'description' => t('Configure Raydash for live video'),
+                                               'page callback' => 'drupal_get_form',
+                                               'page arguments' => array('raydash_site_settings'),
+                                               'access arguments' => 'administer raydash',
+                                               'file'=>'raydash.menu.inc');
+    $items['raydash/next']=array('title'=>'next',
+                                 'page callback' => 'raydash_user_next',
+                                 'page arguments' => array(2,3),
+                                 'access arguments'=>'access raydash callback',
+                                 'type'=>MENU_CALLBACK);
+ 
+    $items['raydash/randnext']=array('title'=>'randnext',
+                                     'page callback' => 'raydash_user_randnext',
+                                     'page arguments' => array(2,3),
+                                     'access arguments' => 'access raydash callback',
+                                     'type'=>MENU_CALLBACK);
+    return($items);	
+}
+
+?>

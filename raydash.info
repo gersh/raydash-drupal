@@ -1,0 +1,4 @@
+name = Raydash
+description = Provides changeable live video feeds
+core = 7.x
+dependencies[] = swfembed

@@ -1,0 +1,4 @@
+1) Put raydash in an appropiate module's directory such a '/sites/default/raydash'
+2) Go to http://www.raydash.com and get a userid/secret
+3) Clear you website's cache
+4) Go to the admin configuration, and go into the settings under media->raydash settings, and set the userid/secret you got above

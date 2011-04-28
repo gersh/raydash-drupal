@@ -1,0 +1,105 @@
+<?php
+function raydash_schema() {
+ $schema['raydash_video'] = array(
+     'description' => t('The table for video'),
+     'fields' => array(
+         'id' => array(
+             'description' => t('Primary identifier the video stream'),
+             'type' => 'serial',
+             'unsigned' => TRUE,
+             'not null' => TRUE),
+         'token' => array(
+             'description' => t('The token of this video'),
+             'type' => 'varchar',
+             'length' => 32,
+             'not null' => TRUE)),
+         'primary key' => array('id'));
+     $schema['raydash_stream'] = array(
+         'description' => t('The table stores video stream'),
+         'fields' =>array(
+             'nid' => array(
+                 'description' => t('The table for the stream'),
+                 'type' => 'serial',
+                 'unsigned' => TRUE,
+                 'not null' => TRUE),
+             'entity_id' => array(
+                 'description' => t('The entity in the video stream that
+coresponds to the token'),
+                 'type' => 'serial',
+                 'unsigned' => TRUE,
+                 'not null' => TRUE),
+             'session_id' => array(
+                 'description' => t('The session id foreign key'),
+                 'type' => 'varchar',
+        'length' => 128,
+        'unsigned' => TRUE,
+        'not null' => TRUE),
+    'token' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE),
+	'connected_token' => array(
+	    'description' => t('The token this video-stream is connected'),
+	    'type' => 'varchar',
+	    'length' => 32,
+	    'not null' => TRUE)),
+    'primary key'=>array('nid','entity_id','session_id'));
+   $schema['raydash_record'] = array(
+       'description' => t('Stores record stream'),
+       'fields'=>array(
+           'nid' => array(
+               'description' => t('The table for the stream'),
+               'type' => 'serial',
+               'unsigned' => TRUE,
+               'not null' => TRUE),
+           'entity_id' => array(
+               'description' => t('The entity in the video stream that
+coresponds to the token'),
+               'type' => 'serial',
+               'unsigned' => TRUE,
+               'not null' => TRUE),
+           'session_id' => array(
+               'description' => t('The session id foreign key'),
+               'type' => 'varchar',
+               'length' => 128,
+               'unsigned' => TRUE,
+               'not null' => TRUE),
+           'token' => array(
+               'type' => 'varchar',
+               'length' => 32,
+               'not null' => TRUE),
+           'active' => array(
+               'type' => 'int',
+               'lenght' => 1,
+               'not null' => TRUE,
+               'default' => 1)),
+       'primary key'=>array('nid','entity_id','session_id'));
+                    
+   return($schema);
+}
+function raydash_field_schema($field) {
+    // if($field['type']=='raydash_stream'){
+        $columns = array( 'token' => array(
+        'type' => 'varchar',
+        'length' => 32,
+        'not null' => TRUE),
+	'connected_token' => array(
+	    'description' => t('The token this video-stream is connected'),
+	    'type' => 'varchar',
+	    'length' => 32,
+	    'not null' => TRUE));
+        /*  }
+    else if($field['type']=='raydash_record') {
+        $columns = array( 'token' => array(
+               'type' => 'varchar',
+               'length' => 32,
+               'not null' => TRUE),
+           'active' => array(
+               'type' => 'int',
+               'lenght' => 1,
+               'not null' => TRUE,
+               'default' => 1));
+               }*/
+    return(array('columns'=>$columns));
+}
+?>
